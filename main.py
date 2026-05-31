@@ -2,7 +2,18 @@ import os
 import time
 from playwright.sync_api import sync_playwright
 
-SHOW_WINDOW = False
+SHOW_WINDOW = True
+UPLOAD_TIMEOUT = 100
+MAX_RETRY_ATTEMPTS = 25
+
+def remove_dialog(page):
+    print("Wiping blocking dialog overlays from DOM...")
+    time.sleep(1)  # Let the modal render completely first
+    page.evaluate('''() => {
+        const dialogs = document.querySelectorAll('dialog');
+        dialogs.forEach(d => d.remove());
+    }''')
+    print("Dialogs removed successfully.")
 
 def run_extractor():
     user_profile = os.environ.get("USERPROFILE") # Gets "C:\Users\<CurrentName>"
@@ -68,50 +79,45 @@ def run_extractor():
         print("Navigating to LTD Save Editor...")
         page.goto("https://ltdsave.app/mii")
 
-        print("Removing images...")
-        try:
-            page.evaluate('''() => {
-                const imgs = document.querySelectorAll('img, svg, picture, canvas');
-                imgs.forEach(i => i.remove());
-
-                const allElements = document.querySelectorAll('*');
-                allElements.forEach(el => {
-                    if (el.style && el.style.backgroundImage) {
-                        el.style.backgroundImage = 'none';
-                    }
-                });
-            }''')
-        except Exception as e:
-            print(f"Warning during visual cleanup: {e}")
-
         time.sleep(0.5)
+        
+        remove_dialog(page)
 
         print("Waiting for the website interface to load...")
         page.wait_for_selector('input[type="file"]', state="attached", timeout=10000)
 
-        # Upload
-        print(f"Uploading {input_file}...")
-        page.set_input_files('input[type="file"]', file_path)
-
-        print("Wiping blocking dialog overlays from DOM...")
-        
-        time.sleep(1)  # Let the modal render completely first
-        
-        page.evaluate('''() => {
-            const dialogs = document.querySelectorAll('dialog');
-            dialogs.forEach(d => d.remove());
-        }''')
-        print("Dialogs removed successfully.")
-
         summary_selector = 'summary:has-text("Export")'
+        upload_successful = False
 
-        print("Waiting for the app to finish processing and loading the save data...")
+        for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
+            print(f"\n[Attempt {attempt}/{MAX_RETRY_ATTEMPTS}] Uploading {input_file}...")
+            try:
+                page.set_input_files('input[type="file"]', file_path)
+                
+                print(f"Waiting {UPLOAD_TIMEOUT}ms for the interface to parse save data...")
+
+                page.wait_for_selector(summary_selector, state="attached", timeout=UPLOAD_TIMEOUT)
+                
+                print("Verification successful! Save layout detected.")
+                upload_successful = True
+                remove_dialog(page)
+                break  # Exit loop early since it found the thing
+            except Exception:
+                print(f"Warning: Summary element not found within 1 second on attempt {attempt}.")
+
+                if attempt < MAX_RETRY_ATTEMPTS:
+                    print("Retrying upload...")
+                    time.sleep(0.5)
+
+        if not upload_successful:
+            print(f"\nError: Failed to verify upload after {MAX_RETRY_ATTEMPTS} attempts. Aborting.")
+            context.close()
+            browser.close()
+            return
+
+        # Click and download
         try:
-            # Give the website 15 seconds to parse the data
-            page.wait_for_selector(summary_selector, state="attached", timeout=15000)
-            
             time.sleep(0.5) # Pause for UI to load
-            
             print("Opening the collapsed summary menu...")
             page.click(summary_selector, force=True)
             print("Menu expanded successfully.")
@@ -119,7 +125,6 @@ def run_extractor():
             print(f"Could not open menu via text match. Error: {e}")
             print("Attempting fallback to click the first structure summary tag...")
             try:
-                # Fallback: click the first summary block on the page
                 page.click('details summary', force=True)
                 print("Fallback menu expand triggered.")
             except Exception as fallback_err:
@@ -136,7 +141,7 @@ def run_extractor():
                 page.click(f'button:has-text("{button_text}")', force=True)
             
             download = download_info.value
-            output_path = os.path.join(os.getcwd(), "exports", download.suggested_filename)
+            output_path = os.path.join(os.getcwd(), "exports", "mii_data.json")
             download.save_as(output_path)
             
             print("\n" + "="*40)
