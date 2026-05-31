@@ -2,7 +2,7 @@ import os
 import time
 from playwright.sync_api import sync_playwright
 
-SHOW_WINDOW = True
+SHOW_WINDOW = False
 UPLOAD_TIMEOUT = 100
 MAX_RETRY_ATTEMPTS = 25
 
