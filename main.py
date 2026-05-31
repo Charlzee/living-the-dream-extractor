@@ -2,7 +2,7 @@ import os
 import time
 from playwright.sync_api import sync_playwright
 
-SHOW_WINDOW = True
+SHOW_WINDOW = False
 
 def run_extractor():
     user_profile = os.environ.get("USERPROFILE") # Gets "C:\Users\<CurrentName>"
