@@ -11,3 +11,4 @@ wheels/
 
 # Ignore testing exports
 mii-export_*.json
+*.sav
