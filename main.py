@@ -2,33 +2,90 @@ import os
 import time
 from playwright.sync_api import sync_playwright
 
+SHOW_WINDOW = True
+
 def run_extractor():
-    # Define file names
+    user_profile = os.environ.get("USERPROFILE") # Gets "C:\Users\<CurrentName>"
+    
+    save_folder = os.path.join(
+        user_profile, 
+        "AppData", "Roaming", "Ryujinx", "bis", "user", "save", "0000000000000001", "0"
+    )
+    
     input_file = "Mii.sav"
+    file_path = os.path.join(save_folder, input_file)
 
-    if not os.path.exists(input_file):
-        print(f"Error: Place your '{input_file}' file in this exact folder first!")
-        return
+    # Check if Ryujinx has a save file for LTD
+    if not os.path.exists(file_path):
+        print(f"Error: Could not find your save file at:\n{file_path}")
+        print("Attempting to find local Mii.sav...")
+        file_path = os.path.join(os.getcwd(), input_file)
+        if not os.path.exists(file_path):
+            print("No local file found!")
+            return
 
-    file_path = os.path.abspath(input_file)
+    print(f"Found save file at: {file_path}")
 
     with sync_playwright() as p:
-        print("Launching browser...")
-        browser = p.chromium.launch(headless=True) 
+        print("Launching optimized browser...")
+        
+        # Low RAM flags
+        low_ram_args = [
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--js-flags='--max-old-space-size=256'",
+            "--disable-extensions",
+            "--blink-settings=imagesEnabled=false",
+        ]
+
+        browser = p.chromium.launch(
+            headless=not SHOW_WINDOW,
+            args=low_ram_args
+        ) 
 
         print("Clearing browser cache and creating a fresh session...")
         context = browser.new_context(
-            no_viewport=False,
+            no_viewport=True,
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         )
         context.clear_cookies()
 
         page = context.new_page()
+
+        # Block everything except the structure and engine scripts
+        def block_bloat_assets(route):
+            allowed_types = ["document", "script", "xhr", "fetch"]
+            if route.request.resource_type not in allowed_types:
+                route.abort()
+            else:
+                route.continue_()
+        
+        page.route("**/*", block_bloat_assets)
         
         # Open the save editor
         print("Navigating to LTD Save Editor...")
         page.goto("https://ltdsave.app/mii")
-        
+
+        print("Removing images...")
+        try:
+            page.evaluate('''() => {
+                const imgs = document.querySelectorAll('img, svg, picture, canvas');
+                imgs.forEach(i => i.remove());
+
+                const allElements = document.querySelectorAll('*');
+                allElements.forEach(el => {
+                    if (el.style && el.style.backgroundImage) {
+                        el.style.backgroundImage = 'none';
+                    }
+                });
+            }''')
+        except Exception as e:
+            print(f"Warning during visual cleanup: {e}")
+
+        time.sleep(0.5)
+
         print("Waiting for the website interface to load...")
         page.wait_for_selector('input[type="file"]', state="attached", timeout=10000)
 
@@ -51,7 +108,7 @@ def run_extractor():
         print("Waiting for the app to finish processing and loading the save data...")
         try:
             # Give the website 15 seconds to parse the data
-            page.wait_for_selector(summary_selector, state="visible", timeout=15000)
+            page.wait_for_selector(summary_selector, state="attached", timeout=15000)
             
             time.sleep(0.5) # Pause for UI to load
             
