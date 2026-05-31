@@ -103,10 +103,11 @@ def run_extractor():
                 remove_dialog(page)
                 break  # Exit loop early since it found the thing
             except Exception:
-                print(f"Warning: Summary element not found within 1 second on attempt {attempt}.")
+                print(f"Warning: Summary element not found within {UPLOAD_TIMEOUT}ms on attempt {attempt}.")
 
                 if attempt < MAX_RETRY_ATTEMPTS:
                     print("Retrying upload...")
+                    remove_dialog(page)
                     time.sleep(0.5)
 
         if not upload_successful:
