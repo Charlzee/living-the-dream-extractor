@@ -1,0 +1,22 @@
+name: Sync to Hugging Spaces
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git remote add hf https://Charlzee0:$HF_TOKEN@huggingface.co/spaces/Charlzee0/ltd-extractor-api
+          git push -f hf main
