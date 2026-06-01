@@ -1,8 +1,8 @@
-name: Sync to Hugging Face Spaces
+name: Sync to Hugging Spaces
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -20,4 +20,4 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git remote add hf https://Charlzee0:$HF_TOKEN@huggingface.co/spaces/Charlzee0/ltd-extractor-api
-          git push -f hf main
+          git push -f hf HEAD:main
