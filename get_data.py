@@ -18,7 +18,7 @@ def remove_dialog(page):
     }''')
     print("Dialogs removed successfully.")
 
-def run_extractor(file_name="mii_data.json"):
+def get_local_file():
     user_profile = os.environ.get("USERPROFILE") # Gets "C:\Users\<CurrentName>"
     
     save_folder = os.path.join(
@@ -36,9 +36,25 @@ def run_extractor(file_name="mii_data.json"):
         file_path = os.path.join(os.getcwd(), input_file)
         if not os.path.exists(file_path):
             print("No local file found!")
-            return
+            return None
 
     print(f"Found save file at: {file_path}")
+    
+    # Read the file as raw bytes
+    with open(file_path, "rb") as f:
+        return f.read()
+
+def run_extractor(file_name="mii_data.json", file=None):
+    if file is None:
+        return "No file inputted"
+    else:
+        input_file = "Uploaded_Mii.sav"
+        upload_target = {
+            "name": input_file,
+            "mimeType": "application/octet-stream",
+            "buffer": file
+        }
+        print("Using uploaded file buffer data.")
 
     with sync_playwright() as p:
         print("Launching optimized browser...")
@@ -95,7 +111,8 @@ def run_extractor(file_name="mii_data.json"):
         for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
             print(f"\n[Attempt {attempt}/{MAX_RETRY_ATTEMPTS}] Uploading {input_file}...")
             try:
-                page.set_input_files('input[type="file"]', file_path)
+
+                page.set_input_files('input[type="file"]', upload_target)
                 
                 print(f"Waiting {UPLOAD_TIMEOUT}ms for the interface to parse save data...")
 
@@ -145,6 +162,8 @@ def run_extractor(file_name="mii_data.json"):
                 page.click(f'button:has-text("{button_text}")', force=True)
             
             download = download_info.value
+
+            os.makedirs(os.path.join(os.getcwd(), "exports"), exist_ok=True)
             output_path = os.path.join(os.getcwd(), "exports", file_name)
             download.save_as(output_path)
             
@@ -154,18 +173,23 @@ def run_extractor(file_name="mii_data.json"):
             
         except Exception as e:
             print(f"\nFailed to extract snapshot data: {e}")
-        
-        # Shutdown of the context and browser
+
         context.close()
         browser.close()
 
-def get_mii_data():
+def get_mii_data(file=None):
     file_name = f"mii_data-temp-{time.time_ns()}.json"
-    run_extractor(file_name)
-    file = os.path.join(os.getcwd(), "exports", file_name)
+
+    run_extractor(file_name, file=file)
+    file_path = os.path.join(os.getcwd(), "exports", file_name)
     
-    with open(file, "r") as f:
+    with open(file_path, "r") as f:
         data = json.load(f)
     
-    os.remove(file)
+    os.remove(file_path)
     return data
+
+if __name__ == "__main__":
+    local_bytes = get_local_file()
+    if local_bytes:
+        run_extractor(file=local_bytes)

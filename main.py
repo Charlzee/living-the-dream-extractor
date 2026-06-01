@@ -1,20 +1,35 @@
-import os
-import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from get_data import get_mii_data
 
 app = FastAPI()
 
-TUNNEL_URL = os.environ.get("TUNNEL_URL", "https://ltd-extractor-api.imposter-gm.com")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/api/get_mii_data")
-def forward_to_pc():
+@app.get("/api/test")
+def test():
+    return {"message": "Hello!"}
+
+@app.post("/api/get_mii_data")
+def get_data(file: UploadFile = File(...)):
     try:
-        response = requests.post(f"{TUNNEL_URL}/api/get_mii_data", json={}) 
+        file_bytes = file.file.read()
+
+        extracted_payload = get_mii_data(file=file_bytes)
         
-        return response.json()
-        
-    except requests.exceptions.RequestException as e:
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "data": extracted_payload
+        }
+    except Exception as e:
         raise HTTPException(
-            status_code=503, 
-            detail="Your home PC is currently offline or unreachable."
+            status_code=500, 
+            detail=f"Local extraction failed: {str(e)}"
         )
