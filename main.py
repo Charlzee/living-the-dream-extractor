@@ -11,7 +11,7 @@ class ExtractionRequest(BaseModel):
 async def test():
     return {"message": "Hello"}
 
-@app.post("/api/get_mii_data")
+@app.get("/api/get_mii_data")
 async def get_data(payload: ExtractionRequest):
     try:
         extracted_payload = get_mii_data()
