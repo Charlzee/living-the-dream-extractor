@@ -4,6 +4,10 @@ from get_data import get_mii_data, run_extractor
 
 app = FastAPI()
 
+@app.get("/api/test")
+def test():
+    return {"message": "Hello"}
+
 @app.get("/api/get_mii_data")
 def get_data():
     return {"message": get_mii_data()}
