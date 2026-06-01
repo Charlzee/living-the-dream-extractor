@@ -1,4 +1,4 @@
-FROM python:3.14.4-slim
+FROM python:3.14-slim
 
 RUN apt-get update && apt-get install -y \
     wget \
@@ -7,9 +7,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /code
 
+ENV HOME=/root
+
 COPY ./requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
+RUN playwright install-deps
 RUN playwright install chromium
 
 COPY . .
