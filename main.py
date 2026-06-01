@@ -1,27 +1,20 @@
+import os
+import requests
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from get_data import get_mii_data, run_extractor
 
 app = FastAPI()
 
-class ExtractionRequest(BaseModel):
-    target_id: str | None = None
-
-@app.get("/api/test")
-async def test():
-    return {"message": "Hello"}
+TUNNEL_URL = os.environ.get("TUNNEL_URL", "https://ltd-extractor-api.imposter-gm.com")
 
 @app.get("/api/get_mii_data")
-async def get_data(payload: ExtractionRequest):
+def forward_to_pc():
     try:
-        extracted_payload = get_mii_data()
+        response = requests.post(f"{TUNNEL_URL}/api/get_mii_data", json={}) 
         
-        return {
-            "status": "success",
-            "data": extracted_payload
-        }
-    except Exception as e:
+        return response.json()
+        
+    except requests.exceptions.RequestException as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"Local extraction failed: {str(e)}"
+            status_code=503, 
+            detail="Your home PC is currently offline or unreachable."
         )
